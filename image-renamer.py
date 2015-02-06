@@ -63,7 +63,7 @@ def find_newest_file(folder):
     """
 
     newest_file_name = None
-    newest_creation_time = 0.0
+    newest_modification_time = 0.0
 
     with ftputil.FTPHost(FTP_ADDRESS, FTP_USERNAME, FTP_PASSWORD) as ftp:
         for dirpath, dirnames, files in ftp.walk(folder):
@@ -75,9 +75,9 @@ def find_newest_file(folder):
                 logging.debug("%s modified at %f",
                               fullpath_filename,
                               statinfo.st_mtime)
-                if statinfo.st_mtime > newest_creation_time:
+                if statinfo.st_mtime > newest_modification_time:
                     newest_file_name = fullpath_filename
-                    newest_creation_time = statinfo.st_mtime
+                    newest_modification_time = statinfo.st_mtime
 
     logging.info("Newest file under %s is %s", folder, newest_file_name)
     return newest_file_name
