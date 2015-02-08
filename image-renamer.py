@@ -143,7 +143,7 @@ def find_newest_files(folder):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     for folder in FOLDERS:
         temporary_directory = tempfile.mkdtemp()
