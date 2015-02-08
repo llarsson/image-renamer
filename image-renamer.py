@@ -38,13 +38,25 @@ FILE_TYPE = ".jpg"
 # e.g., "recent-morning.jpg".
 # Make the list empty if there are no interesting times of day that should
 # be dealt with particularly.
+# Periods can overlap. This is intentional: if you want to find the most
+# recent file overall, make a period that covers the entire day like in
+# the example below, and call it "overall". A file can then match both
+# a "morning" period and the "overall" period, for example.
 PERIODS = [
-    dict(name="morning", start="04:00", end="10:00"),
-    dict(name="midday", start="10:00", end="15:00"),
+    dict(name="morning", start="04:00", end="09:59"),
+    dict(name="midday", start="10:00", end="14:59"),
+    dict(name="overall", start="00:00", end="23:59"),
     dict(name="evening", start="15:00", end="22:00")
 ]
 
 # CONFIGURATION END
+
+
+class FileInfo(object):
+    def __init__(self, mtime=0.0, path=None, name=None):
+        self.mtime = mtime
+        self.path = path
+        self.name = name
 
 
 def download_file(remote_abspath, local_abspath):
@@ -67,21 +79,21 @@ def within_period(modification_time, period):
     end_hour, end_minute = period["end"].split(":")
 
     # TODO Can we always assume UTC works here?
-    mtime = datetime.utcfromtimestamp(modification_time).time()
-    start = datetime.time(hour=start_hour, minute=start_minute)
-    end = datetime.time(hour=end_hour, minute=end_minute)
+    mtime = datetime.datetime.utcfromtimestamp(modification_time).time()
+    start = datetime.time(hour=int(start_hour), minute=int(start_minute))
+    end = datetime.time(hour=int(end_hour), minute=int(end_minute))
 
-    return start <= mtime and mtime <= end
+    result = start <= mtime and mtime <= end
+
+    logging.debug("%s within interval %s -- %s? %s",
+                  str(mtime), period["start"], period["end"],
+                  str(result))
+    return result
 
 
 def construct_file_name(period):
     "Construct file name for a given period."
     return TARGET_LABEL + "-" + period["name"] + FILE_TYPE
-
-
-def construct_newest_file_name():
-    "Construct file name for overall most recent file."
-    return "most-" + TARGET_LABEL + FILE_TYPE
 
 
 def find_newest_files(folder):
@@ -98,16 +110,10 @@ def find_newest_files(folder):
 
     """
 
-    newest_file_name = None
-    newest_modification_time = 0.0
-
-    newest_in_period = {"name": period["name"] for period in PERIODS}
-    for nip in newest_in_period:
-        nip["mtime"] = 0.0
-        nip["path"] = None
+    newest_in_period = {period["name"]: FileInfo(name=construct_file_name(period))
+                        for period in PERIODS}
 
     file_names_to_avoid = [construct_file_name(period) for period in PERIODS]
-    file_names_to_avoid.append(construct_newest_file_name())
 
     with ftputil.FTPHost(FTP_ADDRESS, FTP_USERNAME, FTP_PASSWORD) as ftp:
         for dirpath, dirnames, files in ftp.walk(folder):
@@ -124,36 +130,26 @@ def find_newest_files(folder):
                               fullpath_filename,
                               mtime)
 
-                # newest overall?
-                if mtime > newest_modification_time:
-                    newest_file_name = fullpath_filename
-                    newest_modification_time = mtime
-                # newest in some period?
                 for period in PERIODS:
                     if within_period(mtime, period):
                         nip = newest_in_period[period["name"]]
-                        if mtime > nip["mtime"]:
-                            nip["path"] = fullpath_filename
-                            nip["mtime"] = mtime
+                        if mtime > nip.mtime:
+                            nip.path = fullpath_filename
+                            nip.mtime = mtime
 
-    newest_files = []
-    for nip in newest_in_period:
-        newest_files.append({"name": construct_file_name(nip["name"]),
-                             "path": nip["path"]})
-    newest_files.append({"name": construct_newest_file_name(),
-                         "path": newest_file_name})
+    newest_files = [fi for fi in newest_in_period.itervalues() if fi.path]
 
     return newest_files
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     for folder in FOLDERS:
         temporary_directory = tempfile.mkdtemp()
-        for f in find_newest_files(folder):
-            local_abspath = os.path.join(temporary_directory, f["name"])
-            logging.info("File under %s saved temporarily as %s",
-                         folder, local_abspath)
-            download_file(f["path"], local_abspath)
-            upload_file(local_abspath, folder + "/" + f["name"])
+        for fi in find_newest_files(folder):
+            local_abspath = os.path.join(temporary_directory, fi.name)
+            logging.info("File under %s (%s) saved temporarily as %s",
+                         folder, fi.path, local_abspath)
+            download_file(fi.path, local_abspath)
+            upload_file(local_abspath, folder + "/" + fi.name)
