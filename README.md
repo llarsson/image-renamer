@@ -28,12 +28,29 @@ Configure the program in the source code (this is a quick and dirty script, afte
 	    "/at least not for windows hosts",
 	]
 	
-	# The file name that we want to output in the end, e.g., current.jpg
-	TARGET_NAME = "current.jpg"
+	# The label we want to give all files. Will be used for naming, e.g., if set
+	# to "recent", most recent file will be called "most-recent".
+	TARGET_LABEL = "recent"
 	
-	# What file types are we working with? (default: have Python try to figure it
-	# out, based on what the TARGET_NAME is set to)
-	FILE_TYPE = os.path.splitext(TARGET_NAME)
+	# What file types are we working with?
+	FILE_TYPE = ".jpg"
+	
+	# Define interesting times of day here. The most recent file for each period
+	# will be found and uploaded to the server, with a name constructed as:
+	# TARGET_LABEL-PERIOD(name).FILE_TYPE
+	# e.g., "recent-morning.jpg".
+	# Make the list empty if there are no interesting times of day that should
+	# be dealt with particularly.
+	# Periods can overlap. This is intentional: if you want to find the most
+	# recent file overall, make a period that covers the entire day like in
+	# the example below, and call it "overall". A file can then match both
+	# a "morning" period and the "overall" period, for example.
+	PERIODS = [
+	    dict(name="morning", start="04:00", end="09:59"),
+	    dict(name="midday", start="10:00", end="14:59"),
+	    dict(name="overall", start="00:00", end="23:59"),
+	    dict(name="evening", start="15:00", end="22:00")
+	]
 	
 	# CONFIGURATION END
 
